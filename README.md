@@ -6,7 +6,7 @@ Group Project for Course: Inverse Problems in Imaging
 2. [Project Schedule](https://www.dropbox.com/scl/fi/l4kvoyi0yjof63c3dizkp/Schedule.xlsx?dl=0&rlkey=v5yd652d5ib56hmei4a8tobes)
 
 ## To run the script
-1. (online) Google Colab: [colab.research.google.com](https://colab.research.google.com/) 
+1. (online) Google Colab: [colab.research.google.com](https://colab.research.google.com/) for running .ipynb files
 2. (local) Python
 
 ## Useful links
