@@ -1,5 +1,17 @@
+"""
+Author: Jochem Mullink
+Date: 1/5/2020
+Title: ActiveContourROF
+
+Description: This is an implementation of a decomposition
+algorithm described in "Fast global minimization of
+the active contour/snake model", Bresson et al, 2005.
+This algorithm if based on the ROF-model. It decomposes
+the image in two parts. One part (u) has small total variation
+and the other part (v) has small l1-norm.
+"""
+
 import numpy as np
-from TotalVariation import _total_variation
 
 def gradient(x):
     """Calculate gradient from x"""
@@ -13,26 +25,33 @@ def div(p1,p2):
     diff1 = np.diff(np.concatenate((np.zeros((shape[0],1)),p2),axis=1),axis=1)  
     return diff0 + diff1
 
-def iteration(p1,p2,dt,image,v,theta1):
+def iteration(p1,p2,dt,v,theta1,g):
     """Calculate next iteration of total_variation"""
-    diff = (image - v)/theta1
     divp = div(p1,p2)
-    gradp = gradient(divp - diff)
-    return (p1 + dt*gradp[0])/(1 + dt*gradp[0]),(p2 + dt*gradp[1])/(1 + dt*gradp[1])
+    gradp = gradient(divp - v/theta1)
+    return (p1 + dt*gradp[0])/(1 + dt/g*np.abs(gradp[0])),(p2 + dt*gradp[1])/(1 + dt/g*np.abs(gradp[1]))
 
-def _total_variation(image, v, theta1, dt=1/16, p1=None,p2=None,maxit=10):
+def _total_variation(v, theta1, g, dt=1/16, maxit=10, tol=1.):
     """Solves minimization problem 1 from page 5.
-    TV(u) + 1/(2*theta)*||u-v||^2
+    min_u TV(u) + ||u-v||_2
     """
-    shape = image.shape
-    if p1 == None:
-        p1 = np.zeros(shape)
-    if p2 == None:
-        p2 = np.zeros(shape)
+    shape = v.shape
+    p1 = np.zeros(shape)
+    p2 = np.zeros(shape)
     
-    for _ in range(maxit):
-        p1, p2 = iteration(p1,p2,dt,image,v,theta1)
-    return image - v - theta1 * div(p1,p2)
+    p1_old = p1
+    p2_old = p2
+    i  = 0
+    eps = tol + 1.
+    
+    while (i < maxit) & (tol < eps):
+        p1, p2 = iteration(p1,p2,dt,v,theta1,g)
+        
+        i += 1
+        eps = np.linalg.norm(p1-p1_old) + np.linalg.norm(p2-p2_old)
+        p1_old = p1
+        p2_old = p2        
+    return v - theta1 * div(p1,p2), i
 
 def _lasso(diff, c):
     """Solves minimization problem 2 from page 5.
@@ -62,22 +81,18 @@ def _wavelet(diff, c):
             coeffs[index] = coef
     return pywt.waverec2(coeffs,'db1')
                 
-    
-            
-
 def _tikhonov(diff, c):
     """Solves minimization problem 2 from page 5.
     """
     return diff/(1+c)
-
-
 
 def ActiveContourROF(image,
                      filter_type = 'tikhonov',
                      lambda1=0.1,
                      theta1=1.0, 
                      epsilon=0.1,
-                     maxit =100
+                     maxit =100,
+                     beta = None
                      ):
     """
     
@@ -113,6 +128,13 @@ def ActiveContourROF(image,
         
     i = 0
     
+    gimage = gradient(image)
+    
+    if beta == None:
+        g = np.ones(image.shape)
+    else:
+        g = 1/(1+(gimage[0]**2 + gimage[1]**2))
+    
     new_u = np.zeros(shape)
     new_v = np.zeros(shape)
     difference = epsilon + 1.0
@@ -123,9 +145,8 @@ def ActiveContourROF(image,
         old_u = new_u
         old_v = new_v
         
-        # new_u = _total_variation(image, new_v, theta1, maxit = 60)
         diff = image - new_v
-        new_u, _ = _total_variation(diff,theta1,maxit=60)
+        new_u, _ = _total_variation(diff,theta1,g,maxit=60)
         
         diff = image - new_u
         
@@ -140,26 +161,6 @@ def ActiveContourROF(image,
     
     return new_u, new_v
 
-def _k_means(u, k):
-    n = u.size
-    shape = u.shape
-    X = np.zeros((n,3))
-    i = 0
-    
-    for index in np.ndindex(shape):
-        X[i,0] = index[0]/shape[0]/10
-        X[i,1] = index[1]/shape[1]/10
-        X[i,2] = u[index]
-        i+=1
-    
-    from sklearn.cluster import k_means
-    kmeans = k_means(X, k)
-    labels = kmeans[1]
-    labels = labels.reshape(shape)
-    return labels
-    
-   
-    
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from skimage import color, io
@@ -175,20 +176,23 @@ if __name__ == '__main__':
     image = image - np.min(image)
     if np.max(image) != 0:
         image = image / np.max(image)
+        
+    image[image>0.01] = 1
+    image[image<=0.01] = 0
     
     
     # Feel free to play around with the parameters to see how they impact the result
-    n_iterations = 60
+    n_iterations = 10
     lambda1 = 0.1
     theta1 = .1
-    filter_type = 'tikhonov'
-    u, v = ActiveContourROF(image, filter_type = filter_type, 
+    beta = 1
+    filter_type = 'lasso'
+    u, v = ActiveContourROF(image, 
+                            filter_type = filter_type, 
                             lambda1=lambda1, 
-                            theta1=theta1, maxit=n_iterations)
-    
- 
-    
-    
+                            theta1=theta1, 
+                            maxit=n_iterations,
+                            beta = beta)
     
     fig, axes = plt.subplots(1, 3, figsize=(8, 8))
     ax = axes.flatten()
