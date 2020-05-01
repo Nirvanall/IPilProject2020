@@ -55,32 +55,30 @@ def ActiveContourMS( image,
         
     i = 0
     
-    new_u = np.zeros(shape)
-    new_v = np.zeros(shape)
+    new_u = image.copy()
+    new_v = image.copy()
     difference = epsilon + 1.0
     
-    mu = 0.5
-    c1 = np.mean(image[image>mu])
-    c2 = np.mean(image[image<=mu])
+    c1 = np.mean(image[image>lambda1])
+    c2 = np.mean(image[image<=lambda1])
     
     while (i < maxit) & (difference > epsilon):
-        # if i % 30 == 29:
-        #     mu = np.mean(new_u)
-        #     c1 = np.mean([new_u>mu])
-        #     c2 = np.mean(new_u[new_u<=mu])
-        #     print(c1,c2)
         i += 1
         
         old_u = new_u
         old_v = new_v
         
-        new_u, _ = _total_variation(new_v,theta1,maxit=60)
+        new_u, _ = _total_variation(new_v,theta1,maxit=10)
         new_v = _minimization2(new_u, c1, c2, image)
-               
+        
+        
+        omega = new_u>lambda1
+        c1 = np.mean(image[omega])
+        c2 = np.mean(image[np.logical_not(omega)])
         
         difference = max([np.linalg.norm(new_v-old_v,ord=1),np.linalg.norm(new_u-old_u,ord=1)])
     
-    return new_u, new_v
+    return new_u, new_v, omega
 
 def _k_means(u, k):
     n = u.size
@@ -98,7 +96,11 @@ def _k_means(u, k):
     labels = labels.reshape(shape)
     return labels
     
-   
+def normalize(image):
+    image = image - np.min(image)
+    if np.max(image) != 0:
+        image = image / np.max(image)
+    return image
     
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
@@ -108,26 +110,23 @@ if __name__ == '__main__':
     # img = io.imread('intensity_circle.png')
     img = io.imread('CT38_13.jpg')
     
-    img = color.rgb2gray(img)
-    image = img - np.mean(img)
-
+    image = color.rgb2gray(img)
+    image = normalize(image)
     
-    image = image - np.min(image)
-    if np.max(image) != 0:
-        image = image / np.max(image)
+    sigma = 0.05
+    image_wn = image + np.random.normal(0, sigma, image.shape)
+
+    image_wn = normalize(image_wn)
     
     
     # Feel free to play around with the parameters to see how they impact the result
     n_iterations = 60
-    lambda1 = 0.1
+    lambda1 = 0.4
     theta1 = 1.
     
-    u, v = ActiveContourMS(image,
-                            lambda1=lambda1, 
-                            theta1=theta1, maxit=n_iterations)
-    
-    # partition = _k_means(u, 5)
-    partition = u >= 0.8
+    u, v, partition = ActiveContourMS(image_wn,
+                                      lambda1=lambda1, 
+                                      theta1=theta1, maxit=n_iterations)
     
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
     ax = axes.flatten()
@@ -135,21 +134,21 @@ if __name__ == '__main__':
     ax[0].imshow(image, cmap="gray")
     ax[0].set_axis_off()
     ax[0].set_title("Original Image", fontsize=12)
-
-    ax[1].imshow(u, cmap="gray")
+    
+    ax[1].imshow(image_wn, cmap="gray")
     ax[1].set_axis_off()
-    title = "u - {} iterations".format(n_iterations)
+    title = "Original image with noise added"
     ax[1].set_title(title, fontsize=12)
 
-    ax[2].imshow(v, cmap="gray")
+    ax[2].imshow(u, cmap="gray")
     ax[2].set_axis_off()
-    ax[2].set_title("v", fontsize=12)
-    
+    title = "u - {} iterations of the Active Contour method".format(n_iterations)
+    ax[2].set_title(title, fontsize=12)
+
     ax[3].imshow(partition, cmap="gray")
     ax[3].set_axis_off()
-    ax[3].set_title("partition", fontsize=12)
+    ax[3].set_title("segmentation", fontsize=12)
     
-
     fig.tight_layout()
     plt.show()
     
