@@ -19,9 +19,13 @@ TODO:
 '''
 
 import numpy as np
+import skimage
 from scipy.signal import convolve2d
 import matplotlib.pyplot as plt
 from skimage import color, io
+from skimage import data
+from skimage.exposure import rescale_intensity
+from skimage.segmentation import chan_vese
 
 def grad(u):        
     return np.gradient(u)
@@ -116,60 +120,227 @@ def normalize(image):
     return image
 
 if __name__ == '__main__':
+
       
     # Suggested parameters for intensity_circle:
-    mu = 0.2 # A suitable value for mu depends on the amount of noise.
-    lambda1 = 0.5
+    mu = 0.55 # A suitable value for mu depends on the amount of noise.
+    lambda1 = 0.6
     beta = 5
     n_iterations = 4
-    img = io.imread('intensity_circle.png')
-    
-    # Suggested parameters for intensity_circle
-    # mu = 0.5 # A suitable value for mu depends on the amount of noise.
-    # lambda1 = 0.5
-    # beta = 5
-    # n_iterations = 4
-    # img = io.imread('CT38_13.jpg')
-    
+
+    #img = io.imread('test images/intensity_circle.png')
+    img = io.imread('CT38/images/CT38_1.jpg')
+    #img = io.imread('test images/blurrycircles.png')
     image = color.rgb2gray(img)
     image = normalize(image)
-    
-    sigma = 0.05
-    image_wn = image + np.random.normal(0, sigma, image.shape)
 
-    image_wn = normalize(image_wn)
-        
-    u, d, b, c1, c2 = BregmanGCS(image_wn, 
-                                 mu, 
-                                 lambda1,  
-                                 beta = beta, 
+    u, d, b, c1, c2 = BregmanGCS(image,
+                                 mu=mu,
+                                 lambda1=lambda1,
+                                 beta=beta,
                                  max_iter=n_iterations)
-    
+
     segmentation = u > mu
-        
-    fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+
+    cv1 = chan_vese(image, mu=0.15, lambda1=1, lambda2=1, tol=1e-3, max_iter=50, extended_output=True)
+
+    fig, axes = plt.subplots(1, 3)
+    ax = axes.flatten()
+
+    ax[0].imshow(img, cmap="gray")
+    ax[0].set_axis_off()
+    ax[0].set_title("Original image", fontsize=12)
+
+    ax[1].imshow(cv1[0], cmap="gray")
+    ax[1].set_axis_off()
+    ax[1].set_title("Chan-Vese")
+
+    ax[2].imshow(segmentation, cmap="gray")
+    ax[2].set_axis_off()
+    ax[2].set_title("Split Bregman")
+
+    plt.show()
+
+
+
+
+
+    """
+    
+
+    u, d, b, c1, c2 = BregmanGCS(image,
+                                 mu=mu,
+                                 lambda1=lambda1,
+                                 beta=beta,
+                                 max_iter=n_iterations)
+
+    segmentation = u > mu
+
+    fig, axes = plt.subplots(1,2, figsize=(8, 8))
     ax = axes.flatten()
 
     ax[0].imshow(image, cmap="gray")
     ax[0].set_axis_off()
-    ax[0].set_title("Original Image", fontsize=12)
+    ax[0].set_title("Original image", fontsize=11)
+
+    ax[1].imshow(segmentation, cmap="gray")
+    ax[0].set_axis_off()
+    plt.show()
+    """
+
+    """
+    # test effect of noise
+    img = skimage.img_as_float(data.binary_blobs(length=128, seed=1))
+    img = normalize(img)
+
+    sigma = 0.25
+    data1 = img + np.random.normal(loc=0, scale=sigma, size=img.shape)
+    data1 = rescale_intensity(data1, in_range=(-sigma, 1+sigma), out_range=(-1, 1))
+    data1 = normalize(data1)
+
+    sigma = 0.5
+    data2 = img + np.random.normal(loc=0, scale=sigma, size=img.shape)
+    data2 = rescale_intensity(data2, in_range=(-sigma, 1 + sigma), out_range=(-1, 1))
+    data2 = normalize(data2)
+
+    sigma = 0.75
+    data3 = img + np.random.normal(loc=0, scale=sigma, size=img.shape)
+    data3 = rescale_intensity(data3, in_range=(-sigma, 1 + sigma), out_range=(-1, 1))
+    data3 = normalize(data3)
+
+    sigma = 1
+    data4 = img + np.random.normal(loc=0, scale=sigma, size=img.shape)
+    data4 = rescale_intensity(data4, in_range=(-sigma, 1 + sigma), out_range=(-1, 1))
+    data4 = normalize(data4)
+
+
+    u, d, b, c1, c2 = BregmanGCS(data1,
+                                 mu=mu,
+                                 lambda1=lambda1,
+                                 beta = beta, 
+                                 max_iter=n_iterations)
     
-    ax[1].imshow(image_wn, cmap="gray")
+    segmentation1 = u > mu
+    d1_bregman = img - segmentation1
+
+    u, d, b, c1, c2 = BregmanGCS(data2,
+                                 mu=mu,
+                                 lambda1=lambda1,
+                                 beta = beta,
+                                 max_iter=n_iterations)
+    segmentation2 = u > mu
+    d2_bregman = img - segmentation2
+
+    u, d, b, c1, c2 = BregmanGCS(data3,
+                                 mu=mu,
+                                 lambda1=lambda1,
+                                 beta=beta,
+                                 max_iter=n_iterations)
+    segmentation3 = u > mu
+    d3_bregman = img - segmentation3
+
+    u, d, b, c1, c2 = BregmanGCS(data4,
+                                 mu=mu,
+                                 lambda1=lambda1,
+                                 beta=beta,
+                                 max_iter=n_iterations)
+    segmentation4 = u > mu
+    d4_bregman = img - segmentation4
+    
+
+
+    # chan-vese segmentation
+    cv1 = chan_vese(data1, mu=0.25, lambda1=1, lambda2=1, tol=1e-3, max_iter=50, extended_output=True)
+    d1 = img - cv1[0]
+    cv2 = chan_vese(data2, mu=0.25, lambda1=1, lambda2=1, tol=1e-3, max_iter=50, extended_output=True)
+    d2 = img - cv2[0]
+    cv3 = chan_vese(data3, mu=0.25, lambda1=1, lambda2=1, tol=1e-3, max_iter=50, extended_output=True)
+    d3 = img - cv3[0]
+    cv4 = chan_vese(data4, mu=0.25, lambda1=1, lambda2=1, tol=1e-3, max_iter=50, extended_output=True)
+    d4 = img - cv4[0]
+    """
+    """
+    # plot effect of noise
+    fig, axes = plt.subplots(4, 5, figsize=(8, 8))
+    ax = axes.flatten()
+
+    ax[0].imshow(data1, cmap="gray")
+    ax[0].set_axis_off()
+    ax[0].set_title("Noise level $\sigma = 0.25$", fontsize=11)
+
+    ax[1].imshow(cv1[0], cmap="gray")
     ax[1].set_axis_off()
-    title = "Original image with noise added"
-    ax[1].set_title(title, fontsize=12)
+    ax[1].set_title("Chan-Vese", fontsize=11)
 
-    ax[2].imshow(u, cmap="gray")
+    ax[2].imshow(segmentation1, cmap="gray")
     ax[2].set_axis_off()
-    title = "u - {} iterations".format(n_iterations)
-    ax[2].set_title(title, fontsize=12)
+    ax[2].set_title("Split Bregman", fontsize=11)
 
-    ax[3].imshow(segmentation, cmap="gray")
+    ax[3].imshow(d1, cmap="gray")
     ax[3].set_axis_off()
-    ax[3].set_title("segmentation", fontsize=12)
-    
+    ax[3].set_title("Chan-Vese error", fontsize=11)
+
+    ax[4].imshow(d1_bregman, cmap="gray")
+    ax[4].set_axis_off()
+    ax[4].set_title("Split Bregman error", fontsize=11)
+
+    ax[5].imshow(data2, cmap="gray")
+    ax[5].set_axis_off()
+    ax[5].set_title("Noise level $\sigma = 0.5$", fontsize=11)
+
+    ax[6].imshow(cv2[0], cmap="gray")
+    ax[6].set_axis_off()
+
+    ax[7].imshow(segmentation2, cmap="gray")
+    ax[7].set_axis_off()
+
+    ax[8].imshow(d2, cmap="gray")
+    ax[8].set_axis_off()
+
+    ax[9].imshow(d2_bregman, cmap="gray")
+    ax[9].set_axis_off()
+
+    ax[10].imshow(data3, cmap="gray")
+    ax[10].set_axis_off()
+    ax[10].set_title("Noise level $\sigma = 0.75$", fontsize=11)
+
+    ax[11].imshow(cv3[0], cmap="gray")
+    ax[11].set_axis_off()
+
+    ax[12].imshow(segmentation3, cmap="gray")
+    ax[12].set_axis_off()
+
+    ax[13].imshow(d3, cmap="gray")
+    ax[13].set_axis_off()
+
+    ax[14].imshow(d3_bregman, cmap="gray")
+    ax[14].set_axis_off()
+
+    ax[15].imshow(data4, cmap="gray")
+    ax[15].set_axis_off()
+    ax[15].set_title("Noise level $\sigma = 1$", fontsize=11)
+
+    ax[16].imshow(cv4[0], cmap="gray")
+    ax[16].set_axis_off()
+
+    ax[17].imshow(segmentation4, cmap="gray")
+    ax[17].set_axis_off()
+
+    ax[18].imshow(d4, cmap="gray")
+    ax[18].set_axis_off()
+
+    ax[19].imshow(d4_bregman, cmap="gray")
+    ax[19].set_axis_off()
+
+
     fig.tight_layout()
     plt.show()
-    
+    """
+
+
+
+
+    #plt.imshow(segmentation, cmap="gray")
+    #plt.imsave("segmentation43.jpg", segmentation)
     
     

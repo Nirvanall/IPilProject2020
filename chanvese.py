@@ -327,7 +327,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from skimage import color, io
 
-    img = io.imread('CT38_13.jpg')
+    img = io.imread('CT38/images/CT38_12.jpg')
     # img = io.imread('intensity_circle.png')
     img = color.rgb2gray(img)
     img = img - np.mean(img)
